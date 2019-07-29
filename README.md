@@ -1,2 +1,2 @@
 # atari-dqn
-Deep reinforcement learning for self mad atari game environment
+Deep reinforcement learning for self made atari game environment
