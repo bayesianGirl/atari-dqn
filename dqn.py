@@ -237,7 +237,7 @@ def select_action(state):
     steps_done += 1
     if sample > eps_threshold:
         with torch.no_grad():
-            return max(policy_net(state))
+            return np.argmax(policy_net(state))
     else:
         return torch.tensor([[random.randrange(n_actions)]], device=device, dtype=torch.long)
 
