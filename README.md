@@ -31,4 +31,12 @@ After 60 mins:
 
 
 
+After 2 hours:
+
+
+
+![vid326](https://user-images.githubusercontent.com/32021556/62042385-a1355980-b21b-11e9-855c-08a9b7fa6d94.gif)
+
+
+
 The model needs to be trained for more episodes. 
