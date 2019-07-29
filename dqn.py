@@ -61,7 +61,7 @@ class DQN(nn.Module):
         self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
         self.bn3 = nn.BatchNorm2d(64)
 
-        self.fc1 = nn.Linear(3136, 512)
+        self.fc1 = nn.Linear(12544, 512)
         self.fc2 = nn.Linear(512, 2)
 
 
@@ -89,11 +89,11 @@ def get_image(screen):
 def get_next_state(curr_screen, action, x_coord, block_break, x1, y1, angle):
 	screen = pygame.display.set_mode((400,300))
 	screen = curr_screen
-	image = np.zeros((300,400,4))
+	image = np.zeros((4, 300,400,4))
 	reward = 0.0
 	for i in range(0, 4):
-		if action == 0 : x_coord -= 30
-		if action == 1 : x_coord += 30
+		if action == 0 : x_coord -= 20
+		if action == 1 : x_coord += 20
 		if(x_coord<=0):
 			x_coord = 0
 		if(x_coord>=370):
@@ -103,7 +103,7 @@ def get_next_state(curr_screen, action, x_coord, block_break, x1, y1, angle):
 		reward = 0.0
 		for bl in range(0, len(block_break)):
 			pygame.draw.rect(screen, (255,255,255), block_break[bl])
-		block = pygame.draw.rect(screen, (0,255,120), pygame.Rect(x_coord, 290, 30,10))
+		block = pygame.draw.rect(screen, (0,255,120), pygame.Rect(x_coord, 290, 50,10))
 		if(x1>=0 and x1<400 and y1>=0 and y1<300):
 			x1 += math.sin(angle)*15.0
 			y1 += math.cos(angle)*15.0
@@ -132,7 +132,7 @@ def get_next_state(curr_screen, action, x_coord, block_break, x1, y1, angle):
 			else:
 				new_blocks.append(block_break[l])
 		block_break = new_blocks
-		image += get_image(screen)
+		image[i]= get_image(screen)
 	return image , screen, reward, x_coord, block_break, x1, y1, angle,life_end
 
 
@@ -150,14 +150,14 @@ def get_initial_state():
 	initial_history = 4
 	block_break=[]
 	screen = pygame.display.set_mode((400,300))
-	image = np.zeros((300,400,4))
+	image = np.zeros((4,300,400,4))
 	x1 = 200
 	y1 = 150
 	start_y = 100
 	start_x = 0
 	y_coord = 290
 	x_coord = 200
-	angle = random.randint(-120, 120)
+	angle = random.randint(-60, 60)
 	angle = angle*3.14/180
 	life_end = False
 	for i in range(0, 2):
@@ -168,13 +168,13 @@ def get_initial_state():
 		start_y +=10
 	for bl in range(0, len(block_break)):
 		pygame.draw.rect(screen, (225,0,0) , block_break[bl])
-	block = pygame.draw.rect(screen, (0,255,120), pygame.Rect(x_coord, y_coord, 30,10))
+	block = pygame.draw.rect(screen, (0,255,120), pygame.Rect(x_coord, y_coord, 50,10))
 	ball = pygame.draw.circle(screen, (0, 255,255), (int(x1), int(y1)), 10)
-	for i in range(0, initial_history):
+	for it in range(0, initial_history):
 		screen.fill((0, 0, 0))
 		for bl in range(0, len(block_break)):
 			pygame.draw.rect(screen, (255,255,255), block_break[bl])
-		block = pygame.draw.rect(screen, (0,255,120), pygame.Rect(x_coord, y_coord, 30,10))
+		block = pygame.draw.rect(screen, (0,255,120), pygame.Rect(x_coord, y_coord, 50,10))
 		ball = pygame.draw.circle(screen, (0, 255,255), (int(x1), int(y1)), 10)
 		if(x1>=0 and x1<400 and y1>=0 and y1<300):
 			x1 += math.sin(angle)*15.0
@@ -202,7 +202,7 @@ def get_initial_state():
 			else:
 				new_blocks.append(block_break[l])
 		block_break = new_blocks
-		image += get_image(screen)
+		image[it]= get_image(screen)
 	return image, screen, x_coord, block_break, x1, y1, angle
 
 
@@ -264,6 +264,13 @@ def plot_durations():
         display.clear_output(wait=True)
         display.display(plt.gcf())
 
+
+def resize_batch(images):
+	resized = np.zeros((4,84,84,4))
+	for i in range(0, images.shape[0]):
+		resized[i][:][:][:] = cv2.resize(images[i], (84,84))
+	return resized		
+
 def optimize_model():
     if len(memory) < BATCH_SIZE:
         return
@@ -299,20 +306,22 @@ def optimize_model():
     return loss
 
 num_episodes = 5000000000000000000
+loss_list = []
 for i_episode in range(num_episodes):
     # Initialize the environment and state
 	scenes=[]
 	done = False
 	init_screen_image , game_screen, x_coord, block_break, x1, y1, angle = get_initial_state()
-	scenes.append(init_screen_image)
+	for i in range(0, init_screen_image.shape[0]):
+		scenes.append(init_screen_image[i])
 	loss = 0.0
 	frame_count = 0
 	for t in range(0, 100):
 		frame_count+=1
 		# Select and perform an action
-		init_screen_image = cv2.resize(init_screen_image, (84,84))
+		init_screen_image = resize_batch(init_screen_image)
 		init_screen_image_ = torch.tensor(init_screen_image).float()
-		init_screen_image_ = torch.reshape(init_screen_image_, [1, 4, 84, 84])
+		init_screen_image_ = torch.reshape(init_screen_image_, [4, 4, 84, 84])
 		action = select_action(init_screen_image_)
 		action_ = torch.tensor(action).long()
 		action_ = torch.reshape(action_, [1,1])
@@ -320,28 +329,35 @@ for i_episode in range(num_episodes):
 		reward = torch.tensor([reward], device=device)
 
 		# Store the transition in memory
-		next_state_arr = cv2.resize(next_state, (84,84))
+		next_state_arr = resize_batch(next_state)
 		next_state_ = torch.tensor(next_state_arr).float()
-		next_state_ = torch.reshape(next_state_, [1, 4, 84, 84])
+		next_state_ = torch.reshape(next_state_, [4, 4, 84, 84])
 		memory.push(init_screen_image_, action_, next_state_, reward)
 
 		# Move to the next state
 		init_screen_image = next_state
-		scenes.append(next_state)
+		for i in range(0, next_state.shape[0]):
+			scenes.append(next_state[i])
 		# Perform one step of the optimization (on the target network)
 		loss += optimize_model()
+	
 		if done:
 		    episode_durations.append(t + 1)
-		    plot_durations()
 		    break
 		# Update the target network, copying all weights and biases in DQN
 		if i_episode % TARGET_UPDATE == 0:
 			target_net.load_state_dict(policy_net.state_dict())
 
 		# print('Complete')
+	loss = loss/frame_count
+	print("reward for this episode", reward.item())
 	print("loss", loss/frame_count)
 	vid_name = 'vid' +str(i_episode)+'.gif'
 	imageio.mimsave(vid_name ,  scenes)
 	print("Completed one episode")
-plt.ioff()
-plt.show()
+	loss_list.append(loss)
+	plt.ion()
+	plt.figure(200)
+	plt.plot(loss_list)
+	plt.show()
+	plt.pause(0.05)
